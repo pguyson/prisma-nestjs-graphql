@@ -2,6 +2,8 @@
 
 Generate object types, inputs, args, etc. from prisma schema file for usage with @nestjs/graphql module.
 
+Supports **Prisma 5, 6, and 7**.
+
 ## Features
 
 - Generates only necessary imports
@@ -32,6 +34,8 @@ generator nestgraphql {
 ```sh
 npx prisma generate
 ```
+
+**Prisma 7 users:** Prisma 7 uses `prisma.config.ts` for CLI configuration. Ensure you have a root `prisma.config.ts` with `schema` and `datasource.url` (and `import 'dotenv/config'` if you use `env()`). In Prisma 7, `prisma generate` is not run automatically after `migrate dev` or `db push`; run it explicitly when needed. If you use the `prisma-client` generator, import the client from your configured `output` path instead of `@prisma/client`.
 
 3. If your models have `Decimal` and `Json` types, you need install:
 

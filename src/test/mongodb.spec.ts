@@ -4,10 +4,17 @@ import { Project, SourceFile } from 'ts-morph';
 import { testSourceFile } from './helpers';
 import { testGenerate } from './test-generate';
 
+// Prisma 7 does not support MongoDB yet; skip these tests when on Prisma 7
+const isPrisma7 = (() => {
+  const v = (require('@prisma/generator-helper/package.json') as { version: string }).version;
+  return Number.parseInt(v.split('.')[0], 10) >= 7;
+})();
+const describeMongo = isPrisma7 ? describe.skip : describe;
+
 let project: Project;
 let sourceFiles: SourceFile[];
 
-describe('type has been treated as model #99', () => {
+describeMongo('type has been treated as model #99', () => {
   before(async () => {
     ({ project, sourceFiles } = await testGenerate({
       options: [
@@ -51,7 +58,7 @@ describe('type has been treated as model #99', () => {
   });
 });
 
-describe('mongodb json', () => {
+describeMongo('mongodb json', () => {
   before(async () => {
     ({ project, sourceFiles } = await testGenerate({
       options: [`outputFilePattern = "{name}.{type}.ts"`],
@@ -70,7 +77,7 @@ describe('mongodb json', () => {
   });
 });
 
-describe('single model and field mongodb', () => {
+describeMongo('single model and field mongodb', () => {
   before(async () => {
     ({ project, sourceFiles } = await testGenerate({
       options: [`outputFilePattern = "{name}.{type}.ts"`],

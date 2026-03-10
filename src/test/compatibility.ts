@@ -4,6 +4,23 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import * as P from '@prisma/client';
 
 import { Dummy } from '../../@generated/dummy/dummy.model.ts';
+
+function createPrismaClient(): P.PrismaClient {
+  const clientVersion =
+    // eslint-disable-next-line unicorn/prefer-module
+    (require('@prisma/client/package.json') as { version: string }).version;
+  const major = Number.parseInt(clientVersion.split('.')[0], 10);
+  if (major >= 7) {
+    // eslint-disable-next-line unicorn/prefer-module
+    const { PrismaPg } = require('@prisma/adapter-pg');
+    const adapter = new PrismaPg({
+      connectionString:
+        process.env.DATABASE_URL || 'postgresql://user:pass@localhost:5432/test',
+    });
+    return new PrismaClient({ adapter }) as P.PrismaClient;
+  }
+  return new PrismaClient();
+}
 import { DummyCreateInput } from '../../@generated/dummy/dummy-create.input.ts';
 import { DateTimeFilter } from '../../@generated/prisma/date-time-filter.input.ts';
 import { DecimalFilter } from '../../@generated/prisma/decimal-filter.input.ts';
@@ -23,7 +40,7 @@ import { UserScalarFieldEnum } from '../../@generated/user/user-scalar-field.enu
 import { UserWhereInput } from '../../@generated/user/user-where.input.ts';
 import { UserWhereUniqueInput } from '../../@generated/user/user-where-unique.input.ts';
 
-let $prisma = new PrismaClient();
+let $prisma = createPrismaClient();
 
 {
   let p: P.User = {} as unknown as P.User;

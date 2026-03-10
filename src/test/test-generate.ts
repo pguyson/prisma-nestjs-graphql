@@ -1,9 +1,11 @@
+import 'dotenv/config';
 import { GeneratorOptions } from '@prisma/generator-helper';
 import { ok } from 'assert';
 import AwaitEventEmitter from 'await-event-emitter/types';
 import { exec } from 'child_process';
 import crypto from 'crypto';
 import fs from 'graceful-fs';
+import path from 'path';
 import { castArray, uniq } from 'lodash';
 import { ImportSpecifierStructure, Project } from 'ts-morph';
 
@@ -14,6 +16,13 @@ import { DMMF, EventArguments } from '../types';
 const { '@prisma/generator-helper': generatorVersion } =
   // eslint-disable-next-line unicorn/prefer-module
   require('../../package.json').dependencies;
+
+function isPrisma7(): boolean {
+  const v =
+    // eslint-disable-next-line unicorn/prefer-module
+    require('@prisma/generator-helper/package.json').version as string;
+  return Number.parseInt(v.split('.')[0], 10) >= 7;
+}
 
 export async function testGenerate(args: {
   schema: string;
@@ -128,7 +137,18 @@ async function createGeneratorOptions(
   provider: 'postgresql' | 'mongodb' = 'postgresql',
   previewFeatures: string[] = [],
 ): Promise<GeneratorOptions & { prismaClientDmmf: DMMF.Document }> {
-  const schemaHeader = `
+  const prisma7 = isPrisma7();
+  const schemaHeader = prisma7
+    ? `
+        datasource db {
+            provider = "${provider}"
+        }
+        generator client {
+            provider        = "prisma-client-js"
+            previewFeatures = ${JSON.stringify(previewFeatures)}
+        }
+    `
+    : `
         datasource db {
             provider = "${provider}"
             url = env("DATABASE_URL")
@@ -156,10 +176,33 @@ async function createGeneratorOptions(
         `;
     fs.writeFileSync(schemaFile, schemaContent);
 
-    await new Promise((resolve, reject) => {
-      const proc = exec(
-        `node node_modules/prisma/build/index.js generate --schema=${schemaFile}`,
-      );
+    if (prisma7) {
+      const configPath = path.join(prismaTestPath, `prisma-${hash}.config.ts`);
+      const configContent = `import 'dotenv/config';
+import { defineConfig, env } from 'prisma/config';
+
+export default defineConfig({
+  schema: ${JSON.stringify(schemaFile)},
+  datasource: {
+    url: env('DATABASE_URL'),
+  },
+});
+`;
+      fs.writeFileSync(configPath, configContent);
+    }
+
+    const prismaCmd = prisma7
+      ? `node node_modules/prisma/build/index.js generate --config=${path.join(prismaTestPath, `prisma-${hash}.config.ts`)}`
+      : `node node_modules/prisma/build/index.js generate --schema=${schemaFile}`;
+
+    await new Promise<void>((resolve, reject) => {
+      const proc = exec(prismaCmd, {
+        env: {
+          ...process.env,
+          DATABASE_URL:
+            process.env.DATABASE_URL || 'postgresql://user:pass@localhost:5432/test',
+        },
+      });
       if (!proc.stderr) {
         throw new Error('Generate error');
       }
@@ -167,7 +210,7 @@ async function createGeneratorOptions(
       proc.stderr.pipe(process.stdout);
       proc.on('error', reject);
       proc.on('exit', code => {
-        code === 0 ? resolve(0) : reject(code);
+        code === 0 ? resolve() : reject(code);
       });
     });
   }
